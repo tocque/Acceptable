@@ -327,6 +327,8 @@ export const enum SyntaxKind {
     LabeledStatement,
     ThrowStatement,
     TryStatement,
+    DialogueRichTextStatement,
+    DialogueCallStatement,
     DebuggerStatement,
     VariableDeclaration,
     VariableDeclarationList,
@@ -385,6 +387,10 @@ export const enum SyntaxKind {
     PropertyAssignment,
     ShorthandPropertyAssignment,
     SpreadAssignment,
+
+    // Dialogue nodes
+    DialogueRichText,
+    DialogueArgument,
 
     // Enum
     EnumMember,
@@ -3808,6 +3814,30 @@ export interface ExportAssignment extends DeclarationStatement, JSDocContainer {
     readonly modifiers?: NodeArray<ModifierLike>;
     readonly isExportEquals?: boolean;
     readonly expression: Expression;
+}
+
+export interface DialogueRichText extends Node {
+    readonly kind: SyntaxKind.DialogueRichText;
+}
+
+export interface DialogueArgument extends Node {
+    readonly kind: SyntaxKind.DialogueArgument;
+    // readonly parent: ObjectLiteralExpression;
+    readonly name: Identifier;
+    readonly initializer: Expression;
+}
+
+export interface DialogueRichTextStatement extends Statement, FlowContainer {
+    readonly kind: SyntaxKind.DialogueRichTextStatement;
+    readonly arguments: NodeArray<DialogueArgument>;
+    readonly richText: DialogueRichText;
+}
+
+export interface DialogueCallStatement extends Statement, FlowContainer {
+    readonly kind: SyntaxKind.DialogueCallStatement;
+    readonly name: Identifier;
+    readonly arguments: NodeArray<DialogueArgument>;
+    readonly richText?: DialogueRichText;
 }
 
 export interface FileReference extends TextRange {
@@ -8873,6 +8903,18 @@ export interface NodeFactory {
     createExportSpecifier(isTypeOnly: boolean, propertyName: string | ModuleExportName | undefined, name: string | ModuleExportName): ExportSpecifier;
     updateExportSpecifier(node: ExportSpecifier, isTypeOnly: boolean, propertyName: ModuleExportName | undefined, name: ModuleExportName): ExportSpecifier;
     /** @internal */ createMissingDeclaration(): MissingDeclaration;
+
+    //
+    // Dialogue
+    //
+    createDialogueRichTextStatement(argumentsArray: readonly DialogueArgument[], richText: DialogueRichText): DialogueRichTextStatement;
+    updateDialogueRichTextStatement(node: DialogueRichTextStatement, argumentsArray: readonly DialogueArgument[], richText: DialogueRichText): DialogueRichTextStatement;
+    createDialogueCallStatement(name: Identifier, argumentsArray: readonly DialogueArgument[], richText: DialogueRichText | undefined): DialogueCallStatement;
+    updateDialogueCallStatement(node: DialogueCallStatement, name: Identifier, argumentsArray: readonly DialogueArgument[], richText: DialogueRichText | undefined): DialogueCallStatement;
+    createDialogueRichText(): DialogueRichText;
+    updateDialogueRichText(node: DialogueRichText): DialogueRichText;
+    createDialogueArgument(name: string | Identifier, initializer: Expression): DialogueArgument;
+    updateDialogueArgument(node: DialogueArgument, name: string | Identifier, initializer: Expression): DialogueArgument;
 
     //
     // Module references

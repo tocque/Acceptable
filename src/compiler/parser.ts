@@ -65,6 +65,10 @@ import {
     DiagnosticMessage,
     Diagnostics,
     DiagnosticWithDetachedLocation,
+    DialogueArgument,
+    DialogueCallStatement,
+    DialogueRichText,
+    DialogueRichTextStatement,
     DoStatement,
     DotDotDotToken,
     ElementAccessExpression,
@@ -1483,6 +1487,8 @@ namespace Parser {
         createForOfStatement: factoryCreateForOfStatement,
         createVariableDeclaration: factoryCreateVariableDeclaration,
         createVariableDeclarationList: factoryCreateVariableDeclarationList,
+        createDialogueRichTextStatement: factoryCreateDialogueRichTextStatement,
+        createDialogueCallStatement: factoryCreateDialogueCallStatement,
     } = factory;
 
     var fileName: string;
@@ -8688,6 +8694,131 @@ namespace Parser {
         setAwaitContext(savedAwaitContext);
         const node = factory.createExportAssignment(modifiers, isExportEquals, expression);
         return withJSDoc(finishNode(node, pos), hasJSDoc);
+    }
+
+    export function parseDialogueBlock(
+        fileName: string,
+        sourceText: string,
+        languageVersion: ScriptTarget,
+        syntaxCursor: IncrementalParser.SyntaxCursor | undefined,
+        setParentNodes = false,
+        scriptKind?: ScriptKind,
+        setExternalModuleIndicatorOverride?: (file: SourceFile) => void,
+        jsDocParsingMode = JSDocParsingMode.ParseAll,
+    ): SourceFile {
+        scriptKind = ensureScriptKind(fileName, scriptKind);
+        if (scriptKind === ScriptKind.JSON) {
+            const result = parseJsonText(fileName, sourceText, languageVersion, syntaxCursor, setParentNodes);
+            convertToJson(result, result.statements[0]?.expression, result.parseDiagnostics, /*returnValue*/ false, /*jsonConversionNotifier*/ undefined);
+            result.referencedFiles = emptyArray;
+            result.typeReferenceDirectives = emptyArray;
+            result.libReferenceDirectives = emptyArray;
+            result.amdDependencies = emptyArray;
+            result.hasNoDefaultLib = false;
+            result.pragmas = emptyMap as ReadonlyPragmaMap;
+            return result;
+        }
+
+        initializeState(fileName, sourceText, languageVersion, syntaxCursor, scriptKind, jsDocParsingMode);
+
+        const result = parseDialogueBlockWorker(languageVersion, setParentNodes, scriptKind, setExternalModuleIndicatorOverride || setExternalModuleIndicator, jsDocParsingMode);
+
+        clearState();
+
+        return result;
+    }
+
+    function parseDialogueBlockWorker(languageVersion: ScriptTarget, setParentNodes: boolean, scriptKind: ScriptKind, setExternalModuleIndicator: (file: SourceFile) => void, jsDocParsingMode: JSDocParsingMode): SourceFile {
+        const isDeclarationFile = isDeclarationFileName(fileName);
+        if (isDeclarationFile) {
+            contextFlags |= NodeFlags.Ambient;
+        }
+
+        sourceFlags = contextFlags;
+
+        // Prime the scanner.
+        nextToken();
+
+        const saveParsingContext = parsingContext;
+        parsingContext |= 1 << ParsingContext.SourceElements;
+        const statements = createNodeArray([parseDialogueStatement()], getNodePos());
+        parsingContext = saveParsingContext;
+
+        Debug.assert(token() === SyntaxKind.EndOfFileToken);
+        const endHasJSDoc = hasPrecedingJSDocComment();
+        const endOfFileToken = withJSDoc(parseTokenNode<EndOfFileToken>(), endHasJSDoc);
+
+        const sourceFile = createSourceFile(fileName, languageVersion, scriptKind, isDeclarationFile, statements, endOfFileToken, sourceFlags, setExternalModuleIndicator);
+
+        // A member of ReadonlyArray<T> isn't assignable to a member of T[] (and prevents a direct cast) - but this is where we set up those members so they can be readonly in the future
+        processCommentPragmas(sourceFile as {} as PragmaContext, sourceText);
+        processPragmasIntoFields(sourceFile as {} as PragmaContext, reportPragmaDiagnostic);
+
+        sourceFile.commentDirectives = scanner.getCommentDirectives();
+        sourceFile.nodeCount = nodeCount;
+        sourceFile.identifierCount = identifierCount;
+        sourceFile.identifiers = identifiers;
+        sourceFile.parseDiagnostics = attachFileToDiagnostics(parseDiagnostics, sourceFile);
+        sourceFile.jsDocParsingMode = jsDocParsingMode;
+        if (jsDocDiagnostics) {
+            sourceFile.jsDocDiagnostics = attachFileToDiagnostics(jsDocDiagnostics, sourceFile);
+        }
+
+        if (setParentNodes) {
+            fixupParentReferences(sourceFile);
+        }
+
+        return sourceFile;
+
+        function reportPragmaDiagnostic(pos: number, end: number, diagnostic: DiagnosticMessage) {
+            parseDiagnostics.push(createDetachedDiagnostic(fileName, sourceText, pos, end, diagnostic));
+        }
+    }
+
+    function parseDialogueStatement(): Statement {
+        switch (token()) {
+            case SyntaxKind.HashToken:
+                return parseDialogueRichTextStatement();
+            case SyntaxKind.AtToken:
+                return parseDialogueCallStatement();
+            case SyntaxKind.IfKeyword:
+                return parseIfStatement();
+            case SyntaxKind.WhileKeyword:
+                return parseWhileStatement();
+            case SyntaxKind.ForKeyword:
+                return parseForOrForInOrForOfStatement();
+            case SyntaxKind.ContinueKeyword:
+                return parseBreakOrContinueStatement(SyntaxKind.ContinueStatement);
+            case SyntaxKind.BreakKeyword:
+                return parseBreakOrContinueStatement(SyntaxKind.BreakStatement);
+            case SyntaxKind.ReturnKeyword:
+                return parseReturnStatement();
+            case SyntaxKind.SwitchKeyword:
+                return parseSwitchStatement();
+        }
+        return parseExpressionOrLabeledStatement();
+    }
+
+    function parseDialogueRichText(): DialogueRichText {
+
+    }
+
+    function parseDialogueArguments(): NodeArray<DialogueArgument> {
+        
+    }
+
+    function parseDialogueRichTextStatement(): DialogueRichTextStatement {
+        const argumentsArray = parseDialogueArguments();
+        const richText = parseDialogueRichText();
+        return factoryCreateDialogueRichTextStatement(argumentsArray, richText);
+    }
+
+    function parseDialogueCallStatement(): DialogueCallStatement {
+        parseExpectedToken(SyntaxKind.AtToken);
+        const name = parseIdentifier();
+        const argumentsArray = parseDialogueArguments();
+        const richText = parseOptional(SyntaxKind.HashToken) ? parseDialogueRichText() : void 0;
+        return factoryCreateDialogueCallStatement(name, argumentsArray, richText);
     }
 
     // dprint-ignore

@@ -66,6 +66,10 @@ import {
     Decorator,
     DefaultClause,
     DeleteExpression,
+    DialogueArgument,
+    DialogueCallStatement,
+    DialogueRichText,
+    DialogueRichTextStatement,
     DoStatement,
     DotDotDotToken,
     ElementAccessChain,
@@ -794,6 +798,14 @@ export function createNodeFactory(flags: NodeFactoryFlags, baseFactory: BaseNode
         updateNamedExports,
         createExportSpecifier,
         updateExportSpecifier,
+        createDialogueRichTextStatement,
+        updateDialogueRichTextStatement,
+        createDialogueCallStatement,
+        updateDialogueCallStatement,
+        createDialogueRichText,
+        updateDialogueRichText,
+        createDialogueArgument,
+        updateDialogueArgument,
         createMissingDeclaration,
         createExternalModuleReference,
         updateExternalModuleReference,
@@ -5016,6 +5028,68 @@ export function createNodeFactory(flags: NodeFactoryFlags, baseFactory: BaseNode
             ? update(createExportSpecifier(isTypeOnly, propertyName, name), node)
             : node;
     }
+    
+    // @api
+    function createDialogueRichTextStatement(argumentsArray: readonly DialogueArgument[], richText: DialogueRichText): DialogueRichTextStatement {
+        const node = createBaseNode<DialogueRichTextStatement>(SyntaxKind.DialogueRichTextStatement);
+        node.arguments = asNodeArray(argumentsArray);
+        node.richText = richText;
+        return node;
+    }
+
+    // @api
+    function updateDialogueRichTextStatement(node: DialogueRichTextStatement, argumentsArray: readonly DialogueArgument[], richText: DialogueRichText): DialogueRichTextStatement {
+        return node.arguments !== argumentsArray
+                || node.richText !== richText
+            ? update(createDialogueRichTextStatement(argumentsArray, richText), node)
+            : node;
+    }
+
+    // @api
+    function createDialogueCallStatement(name: Identifier, argumentsArray: readonly DialogueArgument[], richText: DialogueRichText | undefined): DialogueCallStatement {
+        const node = createBaseNode<DialogueCallStatement>(SyntaxKind.DialogueCallStatement);
+        node.name = name;
+        node.arguments = asNodeArray(argumentsArray);
+        node.richText = richText;
+        return node;
+    }
+
+    // @api
+    function updateDialogueCallStatement(node: DialogueCallStatement, name: Identifier, argumentsArray: readonly DialogueArgument[], richText: DialogueRichText | undefined): DialogueCallStatement {
+        return node.name !== name
+                || node.arguments !== argumentsArray
+                || node.richText !== richText
+            ? update(createDialogueCallStatement(name, argumentsArray, richText), node)
+            : node;
+    }
+
+    // @api
+    function createDialogueRichText(): DialogueRichText {
+        const node = createBaseNode<DialogueRichText>(SyntaxKind.DialogueRichText);
+        return node;
+    }
+
+    // @api
+    function updateDialogueRichText(node: DialogueRichText): DialogueRichText {
+        return node;
+    }
+
+    // @api
+    function createDialogueArgument(name: string | Identifier, initializer: Expression): DialogueArgument {
+        const node = createBaseNode<DialogueArgument>(SyntaxKind.DialogueArgument);
+        node.name = asName(name);
+        node.initializer = initializer;
+        return node;
+    }
+
+    // @api
+    function updateDialogueArgument(node: DialogueArgument, name: string | Identifier, initializer: Expression): DialogueArgument {
+        return node.name !== name
+                || node.initializer !== initializer
+            ? update(createDialogueArgument(name, initializer), node)
+            : node;
+    }
+
 
     // @api
     function createMissingDeclaration(): MissingDeclaration {
